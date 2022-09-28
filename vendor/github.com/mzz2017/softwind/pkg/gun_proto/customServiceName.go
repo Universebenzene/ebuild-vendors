@@ -1,4 +1,4 @@
-package proto
+package gun_proto
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func ServerDesc(name string) grpc.ServiceDesc {
 				ClientStreams: true,
 			},
 		},
-		Metadata: "gun.proto",
+		Metadata: "gun_proto.proto",
 	}
 }
 

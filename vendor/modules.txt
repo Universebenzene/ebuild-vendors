@@ -8,10 +8,6 @@ github.com/1lann/promptui/screenbuf
 github.com/AlecAivazis/survey/v2
 github.com/AlecAivazis/survey/v2/core
 github.com/AlecAivazis/survey/v2/terminal
-# github.com/Qv2ray/gun v0.0.0-20210314140700-95a65981f2f8
-## explicit; go 1.16
-github.com/Qv2ray/gun/pkg/cert
-github.com/Qv2ray/gun/pkg/proto
 # github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 ## explicit
 github.com/chzyer/readline
@@ -103,10 +99,12 @@ github.com/modern-go/reflect2
 # github.com/mzz2017/disk-bloom v1.0.1
 ## explicit; go 1.16
 github.com/mzz2017/disk-bloom
-# github.com/mzz2017/softwind v0.0.0-20220619032543-fd114cc9c647
+# github.com/mzz2017/softwind v0.0.0-20220927083556-e7aeacf2aa80
 ## explicit; go 1.18
 github.com/mzz2017/softwind/common
+github.com/mzz2017/softwind/pkg/cert
 github.com/mzz2017/softwind/pkg/fastrand
+github.com/mzz2017/softwind/pkg/gun_proto
 github.com/mzz2017/softwind/pkg/zeroalloc/io
 github.com/mzz2017/softwind/pool
 github.com/mzz2017/softwind/protocol
@@ -178,24 +176,18 @@ gitlab.com/yawning/chacha20.git
 gitlab.com/yawning/chacha20.git/internal/api
 gitlab.com/yawning/chacha20.git/internal/hardware
 gitlab.com/yawning/chacha20.git/internal/ref
-# go4.org/intern v0.0.0-20211027215823-ae77deb06f29
-## explicit; go 1.13
-go4.org/intern
-# go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 => go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760
-## explicit; go 1.11
-go4.org/unsafe/assume-no-moving-gc
-# golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88
+# golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be
 ## explicit; go 1.17
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/cast5
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/chacha20poly1305
 golang.org/x/crypto/hkdf
+golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
-golang.org/x/crypto/internal/subtle
 golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/sha3
-# golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
+# golang.org/x/net v0.0.0-20220926192436-02166a98028e
 ## explicit; go 1.17
 golang.org/x/net/dns/dnsmessage
 golang.org/x/net/http/httpguts
@@ -206,7 +198,7 @@ golang.org/x/net/internal/socks
 golang.org/x/net/internal/timeseries
 golang.org/x/net/proxy
 golang.org/x/net/trace
-# golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6
+# golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/internal/unsafeheader
@@ -229,8 +221,8 @@ golang.org/x/tools/container/intsets
 # google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71
 ## explicit; go 1.11
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.46.0
-## explicit; go 1.14
+# google.golang.org/grpc v1.49.0
+## explicit; go 1.17
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -322,9 +314,5 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 ## explicit
 gopkg.in/yaml.v3
-# inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
-## explicit; go 1.12
-inet.af/netaddr
 # github.com/spf13/cobra => github.com/mzz2017/cobra v0.0.0-20211205075040-2b7f80d9e0b4
 # github.com/spf13/pflag => github.com/mzz2017/pflag v0.0.0-20211204030847-74e9419ee6b3
-# go4.org/unsafe/assume-no-moving-gc => go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760
