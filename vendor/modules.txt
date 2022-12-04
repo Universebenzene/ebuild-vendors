@@ -17,8 +17,8 @@ github.com/bitly/go-simplejson
 # github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d
 ## explicit; go 1.12
 github.com/cpuguy83/go-md2man/v2/md2man
-# github.com/daaku/go.zipexe v1.0.0
-## explicit; go 1.12
+# github.com/daaku/go.zipexe v1.0.2
+## explicit; go 1.11
 github.com/daaku/go.zipexe
 # github.com/dgrijalva/jwt-go v3.2.0+incompatible
 ## explicit
