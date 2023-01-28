@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sync"
 )
 
 type Conn struct {
@@ -20,6 +21,7 @@ type Conn struct {
 	addr  string
 
 	chShakeFinished chan struct{}
+	muShake         sync.Mutex
 	reqBuf          io.ReadWriter
 }
 
@@ -34,11 +36,14 @@ func NewConn(c net.Conn, proxy *HttpProxy, addr string) *Conn {
 }
 
 func (c *Conn) Write(b []byte) (n int, err error) {
+	c.muShake.Lock()
 	select {
 	case <-c.chShakeFinished:
+		c.muShake.Unlock()
 		return c.Conn.Write(b)
 	default:
-		// The first write
+		// Handshake
+		defer c.muShake.Unlock()
 		_, firstLine, _ := bufio.ScanLines(b, true)
 		isHttpReq := regexp.MustCompile(`^\S+ \S+ HTTP/[\d.]+$`).Match(firstLine)
 
@@ -60,6 +65,8 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				// Error
 				return 0, err
 			}
+			// Clear the buf
+			c.reqBuf = nil
 
 			req.URL.Scheme = "http"
 			req.URL.Host = c.addr
@@ -82,7 +89,11 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		if c.proxy.HaveAuth {
 			req.Header.Set("Proxy-Authorization", base64.StdEncoding.EncodeToString([]byte(c.proxy.Username+":"+c.proxy.Password)))
 		}
-		req.Header.Set("Proxy-Connection", "Keep-Alive")
+		// https://www.rfc-editor.org/rfc/rfc7230#appendix-A.1.2
+		// As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
+		if len(req.Header.Values("Proxy-Connection")) > 0 {
+			req.Header.Del("Proxy-Connection")
+		}
 
 		err = req.WriteProxy(c.Conn)
 		if err != nil {
@@ -109,10 +120,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				err = fmt.Errorf("connect server using proxy error, StatusCode [%d]", resp.StatusCode)
 				return 0, err
 			}
+			return c.Conn.Write(b)
 		}
 	}
-	<-c.chShakeFinished
-	return c.Conn.Write(b)
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {

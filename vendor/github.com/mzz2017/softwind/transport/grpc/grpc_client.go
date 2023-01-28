@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"io"
 	"net"
@@ -23,8 +23,13 @@ import (
 )
 
 // https://github.com/v2fly/v2ray-core/blob/v5.0.6/transport/internet/grpc/dial.go
+type clientConnMeta struct {
+	cc         *grpc.ClientConn
+	addrTagger *addrTagger
+}
+
 var (
-	globalCCMap    map[string]*grpc.ClientConn
+	globalCCMap    map[string]*clientConnMeta
 	globalCCAccess sync.Mutex
 )
 
@@ -46,15 +51,18 @@ type ClientConn struct {
 	readClosed    chan struct{}
 	writeClosed   chan struct{}
 	closed        chan struct{}
+
+	addrTagger *addrTagger
 }
 
-func NewClientConn(tun proto.GunService_TunClient, closer context.CancelFunc) *ClientConn {
+func NewClientConn(tun proto.GunService_TunClient, addrTagger *addrTagger, closer context.CancelFunc) *ClientConn {
 	return &ClientConn{
 		tun:         tun,
 		closer:      closer,
 		readClosed:  make(chan struct{}),
 		writeClosed: make(chan struct{}),
 		closed:      make(chan struct{}),
+		addrTagger:  addrTagger,
 	}
 }
 
@@ -163,13 +171,13 @@ func (c *ClientConn) Close() error {
 func (c *ClientConn) CloseWrite() error {
 	return c.tun.CloseSend()
 }
+
+// FIXME: LocalAddr is not RELIABLE.
 func (c *ClientConn) LocalAddr() net.Addr {
-	// FIXME
-	return nil
+	return c.addrTagger.ConnTagInfo.LocalAddr
 }
 func (c *ClientConn) RemoteAddr() net.Addr {
-	p, _ := peer.FromContext(c.tun.Context())
-	return p.Addr
+	return c.addrTagger.ConnTagInfo.RemoteAddr
 }
 
 func (c *ClientConn) SetDeadline(t time.Time) error {
@@ -293,9 +301,10 @@ func (c *ClientConn) SetWriteDeadline(t time.Time) error {
 }
 
 type Dialer struct {
-	NextDialer  proxy.ContextDialer
-	ServiceName string
-	ServerName  string
+	NextDialer    proxy.ContextDialer
+	ServiceName   string
+	ServerName    string
+	AllowInsecure bool
 }
 
 func (d *Dialer) Dial(network string, address string) (net.Conn, error) {
@@ -303,12 +312,12 @@ func (d *Dialer) Dial(network string, address string) (net.Conn, error) {
 }
 
 func (d *Dialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
-	cc, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address)
+	meta, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address, d.AllowInsecure)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	client := proto.NewGunServiceClient(cc)
+	client := proto.NewGunServiceClient(meta.cc)
 
 	clientX := client.(proto.GunServiceClientX)
 	serviceName := d.ServiceName
@@ -322,37 +331,49 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 		streamCloser()
 		return nil, err
 	}
-	return NewClientConn(tun, streamCloser), nil
+	return NewClientConn(tun, meta.addrTagger, streamCloser), nil
 }
 
-func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverName string, address string) (*grpc.ClientConn, ccCanceller, error) {
-	roots, err := cert.GetSystemCertPool()
-	if err != nil {
-		return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
+func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverName string, address string, allowInsecure bool) (*clientConnMeta, ccCanceller, error) {
+	// allowInsecure?
+	var certOption grpc.DialOption
+	if allowInsecure {
+		certOption = grpc.WithTransportCredentials(insecure.NewCredentials())
+	} else {
+		roots, err := cert.GetSystemCertPool()
+		if err != nil {
+			return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
+		}
+		certOption = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName))
 	}
 
 	globalCCAccess.Lock()
 	if globalCCMap == nil {
-		globalCCMap = make(map[string]*grpc.ClientConn)
+		globalCCMap = make(map[string]*clientConnMeta)
 	}
 	globalCCAccess.Unlock()
 
 	canceller := func() {
 		globalCCAccess.Lock()
 		defer globalCCAccess.Unlock()
-		globalCCMap[address].Close()
+		globalCCMap[address].cc.Close()
 		delete(globalCCMap, address)
 	}
 
 	// TODO Should support chain proxy to the same destination
 	globalCCAccess.Lock()
-	if client, found := globalCCMap[address]; found && client.GetState() != connectivity.Shutdown {
+	if meta, found := globalCCMap[address]; found && meta.cc.GetState() != connectivity.Shutdown {
 		globalCCAccess.Unlock()
-		return client, canceller, nil
+		return meta, canceller, nil
 	}
 	globalCCAccess.Unlock()
-	cc, err := grpc.DialContext(ctx, address,
-		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName)),
+	meta := &clientConnMeta{
+		cc:         nil,
+		addrTagger: &addrTagger{},
+	}
+	var err error
+	meta.cc, err = grpc.DialContext(ctx, address,
+		certOption,
 		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
 			return dialer.DialContext(ctxGrpc, "tcp", s)
 		}), grpc.WithConnectParams(grpc.ConnectParams{
@@ -367,10 +388,13 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 			Time:                30 * time.Second,
 			Timeout:             10 * time.Second,
 			PermitWithoutStream: true,
-		}),
+		}), grpc.WithStatsHandler(meta.addrTagger),
 	)
+	if err != nil {
+		return nil, canceller, err
+	}
 	globalCCAccess.Lock()
-	globalCCMap[address] = cc
+	globalCCMap[address] = meta
 	globalCCAccess.Unlock()
-	return cc, canceller, err
+	return meta, canceller, err
 }

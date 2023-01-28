@@ -15,14 +15,18 @@ type UDPConn struct {
 	Timeout time.Duration
 	net.PacketConn
 
+	proxyAddress string
+
 	metadata   protocol.Metadata
 	cipherConf CipherConf
 	masterKey  []byte
 	bloom      *disk_bloom.FilterGroup
 	sg         SaltGenerator
+
+	remoteAddr net.Addr
 }
 
-func NewUDPConn(conn net.PacketConn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UDPConn, error) {
+func NewUDPConn(conn net.PacketConn, proxyAddress string, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UDPConn, error) {
 	conf := CiphersConf[metadata.Cipher]
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
@@ -34,12 +38,13 @@ func NewUDPConn(conn net.PacketConn, metadata protocol.Metadata, masterKey []byt
 		return nil, err
 	}
 	c := &UDPConn{
-		PacketConn: conn,
-		metadata:   metadata,
-		cipherConf: conf,
-		masterKey:  key,
-		bloom:      bloom,
-		sg:         sg,
+		PacketConn:   conn,
+		proxyAddress: proxyAddress,
+		metadata:     metadata,
+		cipherConf:   conf,
+		masterKey:    key,
+		bloom:        bloom,
+		sg:           sg,
 	}
 	return c, nil
 }
@@ -58,13 +63,24 @@ func (c *UDPConn) Write(b []byte) (n int, err error) {
 }
 
 func (c *UDPConn) RemoteAddr() net.Addr {
-	return nil
+	if c.remoteAddr == nil {
+		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
+		if err != nil {
+			return nil
+		}
+		return addr
+	} else {
+		return c.remoteAddr
+	}
 }
 
 func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	metadata := Metadata{
 		Metadata: c.metadata,
 	}
+	addrPort := addr.(*net.UDPAddr).AddrPort()
+	metadata.Hostname = addrPort.Addr().String()
+	metadata.Port = addrPort.Port()
 	prefix := metadata.BytesFromPool()
 	defer pool.Put(prefix)
 	chunk := pool.Get(len(prefix) + len(b))
@@ -84,7 +100,11 @@ func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if c.bloom != nil {
 		c.bloom.ExistOrAdd(toWrite[:c.cipherConf.SaltLen])
 	}
-	return c.PacketConn.WriteTo(toWrite, addr)
+	proxyAddr, err := net.ResolveUDPAddr("udp", c.proxyAddress)
+	if err != nil {
+		return 0, err
+	}
+	return c.PacketConn.WriteTo(toWrite, proxyAddr)
 }
 
 func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
@@ -128,5 +148,6 @@ func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 	}
 	copy(b, b[sizeMetadata:])
 	n -= sizeMetadata
+	c.remoteAddr = addr
 	return n, addr, nil
 }
