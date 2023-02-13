@@ -99,7 +99,7 @@ github.com/modern-go/reflect2
 # github.com/mzz2017/disk-bloom v1.0.1
 ## explicit; go 1.16
 github.com/mzz2017/disk-bloom
-# github.com/mzz2017/softwind v0.0.0-20230210023945-506610874f4c
+# github.com/mzz2017/softwind v0.0.0-20230212090240-561c250bc5c4
 ## explicit; go 1.18
 github.com/mzz2017/softwind/common
 github.com/mzz2017/softwind/pkg/cert
