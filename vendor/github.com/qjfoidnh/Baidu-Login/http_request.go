@@ -158,7 +158,7 @@ func (bc *BaiduClient) SendCodeToUser(verifyType, verifyURL, authID string) (msg
 		return "系统出错: " + err.Error()
 	}
 
-	rawMsg := regexp.MustCompile(`"send"\:"([\w]+)","status"\:"unauth"`).FindSubmatch(body)
+	rawMsg := regexp.MustCompile(`"send"\:"([\w]+)",.*"status"\:"unauth"`).FindSubmatch(body)
 	if len(rawMsg) >= 1 {
 		return string(rawMsg[1])
 	} else {
@@ -216,7 +216,7 @@ func (bc *BaiduClient) VerifyCode(vcode, verifyType, verifyURL, authID, loginPro
 		lj.ErrInfo.No = "-1"
 		return
 	}
-	rawMsg := regexp.MustCompile(`{"check"\:"([\w]+)","status"\:"([\w]+)"`).FindSubmatch(body)
+	rawMsg := regexp.MustCompile(`{"check"\:"([\w]+)",.*"status"\:"([\w]+)"`).FindSubmatch(body)
 	if len(rawMsg) < 2 {
 		lj.ErrInfo.Msg = "提交手机/邮箱验证码错误: 验证码错误"
 		lj.ErrInfo.No = "-2"
